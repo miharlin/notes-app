@@ -1,4 +1,18 @@
 import shelve
+with shelve.open('app') as db:
+    # print(list(db.keys()))
+    if 'note_count' not in db:
+        db['note_count'] = 0
+
+def find_note(note_name, note_owner):
+    with shelve.open('app') as db:
+        for i in range(1, db['note_count']+1):
+            a = db[str(i)]
+            if a.note_name == note_name and a.owner == note_owner:
+                #allow collaborator access sprint3
+                return str(i)
+            else:
+                print("no matching name and owner found")  #print to source errors
 
 class User:
     def __init__(self, fname, lname, psw):
@@ -11,22 +25,34 @@ class User:
     def create_note(self, note_name):
         a = Note(note_name, self.username())
         with shelve.open('app') as db:
-            if note_name not in db:
-                db[note_name] = a
+            if 'note_count' in db:
+                db['note_count'] += 1
+                key = str(db['note_count'])
+                db[key] = a
             else:
                 print('note already exists')
 
     def delete_note(self, note_name):
-        with shelve.open('app') as db:
-            if note_name in db:
-                del db[note_name]
-            else:
-                print('Note not found.')
+        if find_note(note_name, self.username()):
+            note_key = find_note(note_name, self.username())   #return string key
+            with shelve.open('app') as db:
+                del db[note_key]
+                db['note_count'] -= 1
+        else:
+            print('Note not found.')
 
     def view_notes(self):
         with shelve.open('app') as db:
-            print(list(db.keys()))
-        #work on visualization
+            if db['note_count'] == 0:
+                print('no notes exist')
+            else:
+                print("Notes: ")
+                for i in range(1, db['note_count']+1):
+                    key = str(i)
+                    if key in db:
+                        a = db[key]
+                        print(a.note_name, ":", a.text)
+                        #work on visualization
 
 class Note:
     def __init__(self, note_name, owner):
@@ -79,6 +105,7 @@ def main():
 
         if choice == '2':
             if login(temp_user):
+                current_user = temp_user
                 print('logged in.')
                 break
             else:
@@ -98,6 +125,9 @@ def main():
         if choice == '2':
             #print Notes
 
+            with shelve.open('app') as db:
+                print('note count: ', db['note_count'])
+
             choice = input('''
             Choose:
             1. View notes
@@ -107,7 +137,7 @@ def main():
             ''')
 
             if choice == '1':
-                pass
+                current_user.view_notes()
 
             if choice == '2':
                 note_name = input('Input name for note: ')
@@ -118,20 +148,25 @@ def main():
                 current_user.delete_note(note_name)
 
             if choice == '4':
-                selected_note = input('notename')
-                with shelve.open('app') as db:
-                    if selected_note in db:
-                        current_note = db[selected_note]
-                    else:
-                        print('Selected note does not exist.')
-                if current_note != None:
-                    text_action = input('1. Append text 2. Replace text: ')
-                    text = input('Type text:')
+                selected_note = input('Input name of note: ')
+                note_key = find_note(selected_note, current_user.username())
+                print(note_key)
+                if note_key:   #if exists
+                    with shelve.open('app') as db:
+                        current_note = db[note_key]
+                    text_action = input('''
+                    Choose.
+                    1. Append text
+                    2. Replace text
+                    ''')
+                    text = input('Type text: ')
                     if text_action == '1':
                         current_note.append_text(text)
                     if text_action == '2':
                         current_note.replace_text(text)
+                    with shelve.open('app') as db:
+                        db[note_key] = current_note
+                else:
+                    print('Selected note does not exist.')
 
 main()
-
-#notes: shelve currently works for single User, if multiple, re think keys
