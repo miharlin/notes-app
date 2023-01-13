@@ -26,6 +26,101 @@ class Note:
     def replace_text(self, text):
         self.text = text
 
+class App:
+    def __init__(self, db):
+        self.db = db
+
+    def run(self):
+        self.set_account()
+        self.menu()
+
+    def set_account(self):  #login/signup
+        logged_in = False
+        while logged_in == False:
+            choice = input('''
+            Welcome to Notes on Notes.
+            Choose:
+            1. Create account
+            2. Access account
+            ''')
+
+            vals = input('Input: firstname, lastname, password: ').split()
+            temp_user = User(vals[0], vals[1], cipher(vals[2])) #temporary user being checked
+
+            if choice == '1':
+                if create_account(temp_user):
+                    self.current_user = temp_user
+                    logged_in = True
+                else:
+                    print('Account already exists.')
+
+            if choice == '2':
+                if login(temp_user):
+                    self.current_user = temp_user
+                    logged_in = True
+                else:
+                    print('Account does not exist.')
+
+    def menu(self):
+        while True: #once logged in
+
+            choice = input('''
+            Choose:
+            1. Global notes
+            2. Personal notes
+            ''')
+
+            if choice == '1':
+                pass
+
+            if choice == '2':
+
+                choice = input('''
+                Choose:
+                1. View notes
+                2. Create note
+                3. Delete note
+                4. Select note
+                ''')
+
+                if choice == '1':
+                    view_notes(current_user)
+
+                if choice == '2':
+                    note_name = input('Input name for note: ')
+                    create_note(current_user, note_name)
+
+                if choice == '3':
+                    note_name = input('Input name of note to delete: ')
+                    delete_note(current_user, note_name)
+
+                if choice == '4':
+                    selected_note = input('Input name of note: ')
+                    note_key = find_note(selected_note, current_user.username())
+                    if note_key:   #if exists
+                        with shelve.open('app') as db:
+                            current_note = db[note_key]
+
+                        text_action = input('''
+                        Choose.
+                        1. Append text
+                        2. Replace text
+                        ''')
+
+                        text = input('Type text: ')
+
+                        if text_action == '1':
+                            current_note.append_text(text)
+
+                        if text_action == '2':
+                            current_note.replace_text(text)
+
+                        with shelve.open('app') as db:  #save changes
+                            db[note_key] = current_note
+
+                    else:
+                        print('Selected note does not exist.')
+
 def create_note(current_user, note_name):
     a = Note(note_name, current_user.username())
     with shelve.open('app') as db:
@@ -90,94 +185,8 @@ def login(temp_user):   #reorganize
             #add authentification
 
 def main():
-
-    current_user = None
-    current_note = None
-    while True: #login
-
-        choice = input('''
-        Welcome to Notes on Notes.
-        Choose:
-        1. Create account
-        2. Access account
-        ''')
-
-        vals = input('Input: firstname, lastname, password: ').split()
-        temp_user = User(vals[0], vals[1], cipher(vals[2])) #temporary user being checked
-
-        if choice == '1':
-            if create_account(temp_user):
-                current_user = temp_user
-                print('account created.')
-                break
-            else:
-                print('account already exists')
-
-        if choice == '2':
-            if login(temp_user):
-                current_user = temp_user
-                print('logged in.')
-                break
-            else:
-                print('account does not exist')
-
-    while True: #once logged in
-
-        choice = input('''
-        Choose:
-        1. Global notes
-        2. Personal notes
-        ''')
-
-        if choice == '1':
-            pass
-
-        if choice == '2':
-
-            choice = input('''
-            Choose:
-            1. View notes
-            2. Create note
-            3. Delete note
-            4. Select note
-            ''')
-
-            if choice == '1':
-                view_notes(current_user)
-
-            if choice == '2':
-                note_name = input('Input name for note: ')
-                create_note(current_user, note_name)
-
-            if choice == '3':
-                note_name = input('Input name of note to delete: ')
-                delete_note(current_user, note_name)
-
-            if choice == '4':
-                selected_note = input('Input name of note: ')
-                note_key = find_note(selected_note, current_user.username())
-                if note_key:   #if exists
-                    with shelve.open('app') as db:
-                        current_note = db[note_key]
-
-                    text_action = input('''
-                    Choose.
-                    1. Append text
-                    2. Replace text
-                    ''')
-
-                    text = input('Type text: ')
-
-                    if text_action == '1':
-                        current_note.append_text(text)
-
-                    if text_action == '2':
-                        current_note.replace_text(text)
-
-                    with shelve.open('app') as db:  #save changes
-                        db[note_key] = current_note
-
-                else:
-                    print('Selected note does not exist.')
+    a = App('app')
+    a.run()
+    # a.menu()
 
 main()
