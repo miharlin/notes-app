@@ -1,16 +1,6 @@
 import shelve
 import datetime
 
-class Format:
-    underline = '\033[4m'
-    end_underline = '\033[0m'
-
-    green =  '\033[32m' #Green Text
-    red = '\033[31m'
-    blue = '\033[34m'
-    grey = '\033[30m'
-    end_color = '\033[m' # reset to the defaults
-
 def cipher(entered_pw):
   shift = 1
   encrypted_string = ""
@@ -22,23 +12,28 @@ def cipher(entered_pw):
     encrypted_string = encrypted_string + shift_pw_chr
   return encrypted_string
 
+class Format:
+    underline = '\033[4m'
+    end_underline = '\033[0m'
+
+    green =  '\033[32m' #Green Text
+    red = '\033[31m'
+    blue = '\033[34m'
+    grey = '\033[30m'
+    end_color = '\033[m' # reset to the defaults
+
 class User:
     def __init__(self, fname, lname, psw):
-        self.fname = fname
-        self.lname = lname
         self.password = psw
-
-    def username(self):
-        return self.fname + self.lname
-
+        self.username = fname + lname
 
 class Note:
-    def __init__(self, note_name, owner, current_time):
+    def __init__(self, note_name, owner):
         self.text = ''
         self.note_name = note_name
         self.owner = owner
-        self.last_changed = current_time
         self.user_last_changed = owner
+        self.last_changed = datetime.datetime.now()
 
     def append_text(self, text, username):
         self.text += " " + text
@@ -56,22 +51,21 @@ class App:
 
     def signup(self, temp_user):
         with shelve.open(self.db) as db:
-            if temp_user.username() not in db:
-                db[temp_user.username()] = temp_user
+            if temp_user.username not in db:
+                db[temp_user.username] = temp_user
                 self.current_user = temp_user
                 return True
 
-    def login(self, temp_user):   #reorganize
+    def login(self, temp_user):
         with shelve.open(self.db) as db:
-            if temp_user.username() in db:
-                a = db[temp_user.username()]
-                if a.password == temp_user.password:
-                    self.current_user = db[temp_user.username()]
+            if temp_user.username in db:
+                if db[temp_user.username].password == temp_user.password:
+                    self.current_user = db[temp_user.username]
                     return True
 
     def set_account(self):  #login/signup
-        logged_in = False
-        while logged_in == False:
+        self.current_user = None
+        while self.current_user == None:
             choice = input('''
             Choose:
             1. Signup
@@ -82,30 +76,24 @@ class App:
             temp_user = User(vals[0], vals[1], cipher(vals[2])) #temporary user being checked
 
             if choice == '1':
-                if self.signup(temp_user):
-                    logged_in = True
-                else:
+                if not self.signup(temp_user):
                     print('Account already exists.')
 
             if choice == '2':
-                if self.login(temp_user):
-                    logged_in = True
-                else:
+                if not self.login(temp_user):
                     print('Account does not exist.')
 
     def create_note(self, note_name):
         with shelve.open(self.db) as db:
             for i in range(1, db['note_count']+1):
                 if str(i) in db:
-                    key = str(i)
-                    a = db[key]
-                    if a.note_name == note_name and a.owner == self.current_user.username():
+                    if db[str(i)].note_name == note_name and db[str(i)].owner == self.current_user.username:
                         print('You already have note with this name.')
                         return
-            a = Note(note_name, self.current_user.username(), datetime.datetime.now())
+
+            a = Note(note_name, self.current_user.username)
             db['note_count'] += 1
-            key = str(db['note_count'])
-            db[key] = a
+            db[str(db['note_count'])] = a
 
     def delete_note(self, note_name):
         note_key = self.find_note(note_name)
@@ -119,36 +107,31 @@ class App:
     def view_all_notes(self):
         with shelve.open(self.db) as db:
             if db['note_count'] == 0:
-                print('no notes exist')
+                print('No notes exist.')
             else:
                 print("Notes: ")
                 for i in range(1, db['note_count']+1):
-                    key = str(i)
-                    if key in db:
-                        a = db[key]
-                        print(Format.underline+ a.note_name + Format.end_underline, ":", a.text)
+                    if str(i) in db:
+                        print(Format.underline + db[str(i)].note_name + Format.end_underline, ":", db[str(i)].text)
 
     def view_personal_notes(self):
         with shelve.open(self.db) as db:
-            if db['note_count'] == 0:
-                print('no notes exist')
-            else:
-                print("Notes: ")
-                for i in range(1, db['note_count']+1):
-                    key = str(i)
-                    if key in db:
-                        a = db[key]
-                        if a.owner == self.current_user.username():
-                            print(Format.underline + a.note_name + Format.end_underline, ":", a.text)
-                            print("(Last updated:", a.last_changed, "by", Format.red + a.user_last_changed + Format.end_color + ")")
+            print("Notes: ")
+            count = 0
+            for i in range(1, db['note_count']+1):
+                if str(i) in db:
+                    if db[str(i)].owner == self.current_user.username:
+                        print(Format.underline + db[str(i)].note_name + Format.end_underline, ":", db[str(i)].text)
+                        print("(Last updated:", db[str(i)].last_changed, "by", Format.red + db[str(i)].user_last_changed + Format.end_color)
+                        count += 1
+            if count == 0:
+                print('No notes exist.')
 
     def find_note(self, note_name):#find and retrieve note key
         with shelve.open(self.db) as db:
             for i in range(1, db['note_count']+1):
                 if str(i) in db:
-                    a = db[str(i)]
-                    if a.note_name == note_name and a.owner == self.current_user.username():
-                        #allow collaborator access sprint3
+                    if db[str(i)].note_name == note_name and db[str(i)].owner == self.current_user.username:
                         return str(i)
 
     def menu(self):
@@ -161,7 +144,17 @@ class App:
             ''')
 
             if choice == '1':
-                pass
+                self.view_all_notes()
+                choice = input('''
+                Choose:
+                1. Comment on note
+                2. Go back
+                ''')
+
+                if choice == '1':
+                    pass
+                if choice == '2':
+                    pass
 
             if choice == '2':
 
@@ -170,7 +163,7 @@ class App:
                 1. View notes
                 2. Create note
                 3. Delete note
-                4. Select note
+                4. Edit note
                 ''')
 
                 if choice == '1':
@@ -200,10 +193,10 @@ class App:
                         text = input('Type text: ')
 
                         if text_action == '1':
-                            self.current_note.append_text(text, self.current_user.username())
+                            self.current_note.append_text(text, self.current_user.username)
 
                         if text_action == '2':
-                            self.current_note.replace_text(text, self.current_user.username())
+                            self.current_note.replace_text(text, self.current_user.username)
 
                         with shelve.open(self.db) as db:  #save changes
                             db[note_key] = self.current_note
@@ -223,6 +216,5 @@ def main():
     print('Welcome to Notes on Notes.')
     a = App('app')
     a.run()
-    #shelve 'app' incase of crash
 
 main()
