@@ -27,13 +27,14 @@ class User:
         self.password = psw
         self.username = fname + lname
 
-class Note:
-    def __init__(self, note_name, owner):
+class Note: #notes and comments
+    def __init__(self, owner, note_name=None):
         self.text = ''
         self.note_name = note_name
         self.owner = owner
-        self.user_last_changed = owner
+        self.comments = []
         self.last_changed = datetime.datetime.now()
+        self.user_last_changed = owner
 
     def append_text(self, text, username):
         self.text += " " + text
@@ -67,9 +68,9 @@ class App:
         self.current_user = None
         while self.current_user == None:
             choice = input('''
-            Choose:
-            1. Signup
-            2. Login
+        Choose:
+        1. Signup
+        2. Login
             ''')
 
             vals = input('Input: firstname, lastname, password: ').split()
@@ -82,6 +83,7 @@ class App:
             if choice == '2':
                 if not self.login(temp_user):
                     print('Account does not exist.')
+        self.menu()
 
     def create_note(self, note_name):
         with shelve.open(self.db) as db:
@@ -91,12 +93,12 @@ class App:
                         print('You already have note with this name.')
                         return
 
-            a = Note(note_name, self.current_user.username)
+            a = Note(self.current_user.username, note_name)
             db['note_count'] += 1
             db[str(db['note_count'])] = a
 
     def delete_note(self, note_name):
-        note_key = self.find_note(note_name)
+        note_key = self.find_note(note_name, self.current_user.username)
         with shelve.open(self.db) as db:
             if note_key != None and note_key in db:
                 del db[note_key]
@@ -104,7 +106,26 @@ class App:
             else:
                 print('Note not found.')
 
-    def view_all_notes(self):
+    def create_comment(self):
+        vals = Input('Input note name, note owner, comment text: ').split()
+
+        note_key = self.find_note(vals[0], vals[1])
+        if note_key:
+            with shelve.open(self.db) as db:
+                self.current_note = db[note_key]
+
+                #create comment
+                a = Note(self.current_user)
+                a.append_text(vals[3], self.current_user)
+
+                #save comment and store
+                db['note_count'] += 1
+                db[str(db['note_count'])] = a
+
+                self.current_note.comments.append(a)
+                db[note_key] = self.current_note
+
+    def view_global_notes(self):
         with shelve.open(self.db) as db:
             if db['note_count'] == 0:
                 print('No notes exist.')
@@ -112,7 +133,9 @@ class App:
                 print("Notes: ")
                 for i in range(1, db['note_count']+1):
                     if str(i) in db:
-                        print(Format.underline + db[str(i)].note_name + Format.end_underline, ":", db[str(i)].text)
+                        if db[str(i)].note_name:  #print notes, not comments
+                            print(Format.underline + db[str(i)].note_name + Format.end_underline, ":", db[str(i)].text)
+                            print('By:', db[str(i)].owner)
 
     def view_personal_notes(self):
         with shelve.open(self.db) as db:
@@ -120,97 +143,118 @@ class App:
             count = 0
             for i in range(1, db['note_count']+1):
                 if str(i) in db:
-                    if db[str(i)].owner == self.current_user.username:
-                        print(Format.underline + db[str(i)].note_name + Format.end_underline, ":", db[str(i)].text)
-                        print("(Last updated:", db[str(i)].last_changed, "by", Format.red + db[str(i)].user_last_changed + Format.end_color)
+                    if db[str(i)].note_name and db[str(i)].owner == self.current_user.username:#check if a note, then if correct user
                         count += 1
+                        print(Format.underline + db[str(i)].note_name + Format.end_underline, ":", db[str(i)].text)
+                        print("(Last updated:", db[str(i)].last_changed, "by", Format.red + db[str(i)].user_last_changed + Format.end_color, ")")
+
+                        if len(db[str(i)].comments) > 0:    #if comments, print
+                            print("     Comments:")
+                            for comment in db[str(i)].comments:
+                                print("         -", comment.text)
             if count == 0:
                 print('No notes exist.')
 
-    def find_note(self, note_name):#find and retrieve note key
+    def find_note(self, note_name, owner):#find and retrieve note key
         with shelve.open(self.db) as db:
             for i in range(1, db['note_count']+1):
                 if str(i) in db:
-                    if db[str(i)].note_name == note_name and db[str(i)].owner == self.current_user.username:
+                    if db[str(i)].note_name == note_name and db[str(i)].owner == owner:
                         return str(i)
+
+    def global_notes_actions(self):
+        while True:
+            self.view_global_notes()
+
+            choice2 = input('''
+                Choose:
+                1. Comment on note
+                2. Go back
+            ''')
+
+            if choice2 == '1':
+                self.create_comment()
+
+            if choice2 == '2':
+                return
+
+    def personal_notes_actions(self):
+        while True:
+            choice2 = input('''
+            Choose:
+            1. View notes
+            2. Create note
+            3. Delete note
+            4. Edit note
+            5. Go Back
+            ''') #and view comments? or select? delete?
+
+            if choice2 == '1':
+                self.view_personal_notes()
+
+            if choice2 == '2':
+                note_name = input('Input name for note: ')
+                self.create_note(note_name)
+
+            if choice2 == '3':
+                note_name = input('Input name of note to delete: ')
+                self.delete_note(note_name)
+
+            if choice2 == '4':
+                selected_note = input('Input name of note: ')
+                note_key = self.find_note(selected_note, self.current_user.username)
+                if note_key:   #if exists
+                    with shelve.open(self.db) as db:
+                        self.current_note = db[note_key]
+
+                    text_action = input('''
+                    Choose.
+                    1. Append text
+                    2. Replace text
+                    ''')
+
+                    text = input('Type text: ')
+
+                    if text_action == '1':
+                        self.current_note.append_text(text, self.current_user.username)
+
+                    if text_action == '2':
+                        self.current_note.replace_text(text, self.current_user.username)
+
+                    with shelve.open(self.db) as db:  #save changes
+                        db[note_key] = self.current_note
+
+                else:
+                    print('Selected note does not exist.')
+
+            if choice2 == '5':
+                break
 
     def menu(self):
         while True: #once logged in
 
-            choice = input('''
-            Choose:
-            1. Global notes
-            2. Personal notes
+            choice1 = input('''
+        Choose:
+        1. Global notes
+        2. Personal notes
+        3. Logout
             ''')
 
-            if choice == '1':
-                self.view_all_notes()
-                choice = input('''
-                Choose:
-                1. Comment on note
-                2. Go back
-                ''')
+            if choice1 == '1':
+                self.global_notes_actions()
 
-                if choice == '1':
-                    pass
-                if choice == '2':
-                    pass
+            if choice1 == '2':
+                self.personal_notes_actions()
 
-            if choice == '2':
-
-                choice = input('''
-                Choose:
-                1. View notes
-                2. Create note
-                3. Delete note
-                4. Edit note
-                ''')
-
-                if choice == '1':
-                    self.view_personal_notes()
-
-                if choice == '2':
-                    note_name = input('Input name for note: ')
-                    self.create_note(note_name)
-
-                if choice == '3':
-                    note_name = input('Input name of note to delete: ')
-                    self.delete_note(note_name)
-
-                if choice == '4':
-                    selected_note = input('Input name of note: ')
-                    note_key = self.find_note(selected_note)
-                    if note_key:   #if exists
-                        with shelve.open(self.db) as db:
-                            self.current_note = db[note_key]
-
-                        text_action = input('''
-                        Choose.
-                        1. Append text
-                        2. Replace text
-                        ''')
-
-                        text = input('Type text: ')
-
-                        if text_action == '1':
-                            self.current_note.append_text(text, self.current_user.username)
-
-                        if text_action == '2':
-                            self.current_note.replace_text(text, self.current_user.username)
-
-                        with shelve.open(self.db) as db:  #save changes
-                            db[note_key] = self.current_note
-
-                    else:
-                        print('Selected note does not exist.')
+            if choice1 == '3':
+                self.set_account()
 
     def run(self):
         with shelve.open(self.db) as db:
-            # print(list(db.keys()))
             if 'note_count' not in db:
                 db['note_count'] = 0
+
         self.set_account()
-        self.menu()
 
 def main():
     print('Welcome to Notes on Notes.')
