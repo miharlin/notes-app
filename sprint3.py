@@ -107,7 +107,7 @@ class App:
                 print('Note not found.')
 
     def create_comment(self):
-        vals = Input('Input note name, note owner, comment text: ').split()
+        vals = input('Input note name, note owner, comment text: ').split()
 
         note_key = self.find_note(vals[0], vals[1])
         if note_key:
@@ -116,7 +116,7 @@ class App:
 
                 #create comment
                 a = Note(self.current_user)
-                a.append_text(vals[3], self.current_user)
+                a.append_text(vals[2], self.current_user)
 
                 #save comment and store
                 db['note_count'] += 1
@@ -257,7 +257,7 @@ class App:
         self.set_account()
 
 def main():
-    print('Welcome to Notes on Notes.')
+    print(Format.blue+'Welcome to Notes on Notes.'+Format.end_color)
     a = App('app')
     a.run()
 
